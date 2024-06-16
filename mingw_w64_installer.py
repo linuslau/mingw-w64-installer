@@ -76,7 +76,7 @@ class SplashPage(tk.Frame):
     def download_file(self):
         def task():
             url = "https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/installer/repository.txt/download"  # 假定的文件URL
-            total_timeout = 6  # 总共最多尝试10秒
+            total_timeout = 2  # 总共最多尝试10秒
             timeout_per_try = 2  # 单次连接最多5秒
             attempts = 0
             start_time = time.time()
@@ -138,7 +138,6 @@ class SelectOptionsPage(tk.Frame):
         ttk.Label(self, text="Build Revision:").pack(pady=5, anchor='w')
         self.build_revision_combobox = ttk.Combobox(self, state='readonly')
         self.build_revision_combobox.pack(fill='x', padx=10)
-        self.build_revision_combobox.bind("<<ComboboxSelected>>", self.update_combobox_options)
 
         button_frame = tk.Frame(self)
         button_frame.pack(side="bottom", fill="x", pady=10)
@@ -153,7 +152,7 @@ class SelectOptionsPage(tk.Frame):
         back_button.pack(side="right", padx=5)
 
         # 初始加载
-        self.version_combobox['values'] = sorted(set([entry[0] for entry in self.repository_data]))
+        self.version_combobox['values'] = sorted(set([entry[0] for entry in self.repository_data]), reverse=True)
         self.version_combobox.current(0)
         self.update_combobox_options(None)
 
@@ -177,28 +176,41 @@ class SelectOptionsPage(tk.Frame):
         build_revision = self.build_revision_combobox.get()
 
         filtered_data = [entry for entry in self.repository_data if entry[0] == version]
-        architectures = sorted(set([entry[1].strip() for entry in filtered_data]))
+
+        architectures = sorted(set([entry[1].strip() for entry in filtered_data]), reverse=True)
         if architecture not in architectures:
             self.architecture_combobox.set('')
         self.architecture_combobox['values'] = architectures
+        if not self.architecture_combobox.get() and architectures:
+            self.architecture_combobox.set(architectures[0])
+            architecture = architectures[0]
 
         filtered_data = [entry for entry in self.repository_data if entry[0] == version and entry[1].strip() == architecture]
-        thread_options = sorted(set([entry[2].strip() for entry in filtered_data]))
+        thread_options = sorted(set([entry[2].strip() for entry in filtered_data]), reverse=True)
         if threads not in thread_options:
             self.threads_combobox.set('')
         self.threads_combobox['values'] = thread_options
+        if not self.threads_combobox.get() and thread_options:
+            self.threads_combobox.set(thread_options[0])
+            threads = thread_options[0]
 
         filtered_data = [entry for entry in self.repository_data if entry[0] == version and entry[1].strip() == architecture and entry[2].strip() == threads]
-        exception_options = sorted(set([entry[3].strip() for entry in filtered_data]))
+        exception_options = sorted(set([entry[3].strip() for entry in filtered_data]), reverse=False)
         if exception not in exception_options:
             self.exception_combobox.set('')
         self.exception_combobox['values'] = exception_options
+        if not self.exception_combobox.get() and exception_options:
+            self.exception_combobox.set(exception_options[0])
+            exception = exception_options[0]
 
         filtered_data = [entry for entry in self.repository_data if entry[0] == version and entry[1].strip() == architecture and entry[2].strip() == threads and entry[3].strip() == exception]
-        build_revision_options = sorted(set([entry[4].strip() for entry in filtered_data]))
+        build_revision_options = sorted(set([entry[4].strip() for entry in filtered_data]), reverse=False)
         if build_revision not in build_revision_options:
             self.build_revision_combobox.set('')
         self.build_revision_combobox['values'] = build_revision_options
+        if not self.build_revision_combobox.get() and build_revision_options:
+            self.build_revision_combobox.set(build_revision_options[0])
+            build_revision = build_revision_options[0]
 
     def download_file(self):
         version = self.version_combobox.get()
@@ -207,7 +219,7 @@ class SelectOptionsPage(tk.Frame):
         exception = self.exception_combobox.get()
         build_revision = self.build_revision_combobox.get()
 
-        # 找到匹配的URL
+        url = None
         for entry in self.repository_data:
             if (entry[0] == version and entry[1].strip() == architecture and
                 entry[2].strip() == threads and entry[3].strip() == exception and
@@ -225,7 +237,6 @@ class SelectOptionsPage(tk.Frame):
             messagebox.showinfo("Success", f"Downloaded {local_filename}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to download file: {str(e)}")
-
 
 class InstallDirPage(tk.Frame):
     def __init__(self, parent, controller):
