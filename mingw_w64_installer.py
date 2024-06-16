@@ -23,6 +23,8 @@ class InstallerApp(tk.Tk):
     def show_frame(self, page_name):
         frame = self.frames[page_name]
         frame.tkraise()
+        if page_name == "SplashPage":
+            frame.start_download()
 
     def on_cancel(self):
         if messagebox.askyesno("取消", "你确定要取消安装吗？"):
@@ -62,15 +64,17 @@ class SplashPage(tk.Frame):
         label.pack(pady=20)
 
         self.status_text = tk.StringVar()
-        self.status_text.set("Getting repository description file...")
-        status_label = tk.Label(self, textvariable=self.status_text)
-        status_label.pack(pady=10)
+        self.status_label = tk.Label(self, textvariable=self.status_text)
+        self.status_label.pack(pady=10)
 
+    def start_download(self):
+        self.status_text.set("Getting repository description file...")
         self.after(100, self.download_file)
 
     def download_file(self):
         def task():
-            url = "https://example.com/repository_description.zip"  # 假定的文件URL
+            # url = "https://example.com/repository_description.zip"  # 假定的文件URL
+            url = "https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/installer/repository.txt/download"  # 假定的文件URL
             total_timeout = 10  # 总共最多尝试10秒
             timeout_per_try = 5  # 单次连接最多5秒
             attempts = 0
@@ -81,15 +85,16 @@ class SplashPage(tk.Frame):
                     response = requests.get(url, timeout=timeout_per_try)
                     if response.status_code == 200:
                         self.status_text.set("文件下载成功！")
-                        break
+                        time.sleep(2)  # 保持一段时间显示
+                        self.controller.show_frame("SelectOptionsPage")
+                        return
                 except requests.RequestException:
                     attempts += 1
                     self.status_text.set(f"尝试连接中...（尝试次数：{attempts}）")
             else:
                 self.status_text.set("连接超时，继续下一步。")
-
-            time.sleep(2)  # 保持一段时间显示
-            self.controller.show_frame("SelectOptionsPage")
+                time.sleep(2)  # 保持一段时间显示
+                self.controller.show_frame("SelectOptionsPage")
 
         threading.Thread(target=task).start()
 
