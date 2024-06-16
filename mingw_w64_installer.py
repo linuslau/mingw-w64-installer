@@ -5,6 +5,23 @@ import threading
 import time
 import os
 import urllib.request
+import py7zr
+import tkinter as tk
+from tkinter import ttk, messagebox
+import threading
+import os
+import py7zr
+import tkinter as tk
+from tkinter import ttk, messagebox
+import threading
+import os
+import py7zr
+import tkinter as tk
+from tkinter import ttk, messagebox
+import threading
+import os
+import py7zr
+
 
 class InstallerApp(tk.Tk):
     def __init__(self):
@@ -12,14 +29,17 @@ class InstallerApp(tk.Tk):
         self.title("安装包")
         self.geometry("400x400")
         self.resizable(False, False)
-        
+
+        self.download_url = None
+        self.install_dir = None
+
         self.frames = {}
-        for F in (WelcomePage, SplashPage, SelectOptionsPage, InstallDirPage):
+        for F in (WelcomePage, SplashPage, SelectOptionsPage, InstallDirPage, DownloadPage, ExtractPage):
             page_name = F.__name__
             frame = F(parent=self, controller=self)
             self.frames[page_name] = frame
             frame.grid(row=0, column=0, sticky="nsew")
-        
+
         self.show_frame("WelcomePage")
 
     def show_frame(self, page_name):
@@ -27,10 +47,18 @@ class InstallerApp(tk.Tk):
         frame.tkraise()
         if page_name == "SplashPage":
             frame.start_download()
+        elif page_name == "DownloadPage":
+            frame.start_download()
+        elif page_name == "ExtractPage":
+            frame.start_extraction()
 
     def on_cancel(self):
         if messagebox.askyesno("取消", "你确定要取消安装吗？"):
             self.destroy()
+
+    def set_install_dir(self, directory):
+        self.install_dir = directory
+        self.show_frame("DownloadPage")
 
 class WelcomePage(tk.Frame):
     def __init__(self, parent, controller):
@@ -76,7 +104,7 @@ class SplashPage(tk.Frame):
     def download_file(self):
         def task():
             url = "https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/installer/repository.txt/download"  # 假定的文件URL
-            total_timeout = 2  # 总共最多尝试10秒
+            total_timeout = 6  # 总共最多尝试10秒
             timeout_per_try = 2  # 单次连接最多5秒
             attempts = 0
             start_time = time.time()
@@ -105,6 +133,7 @@ class SelectOptionsPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
+        self.download_url = None
 
         label = tk.Label(self, text="选择选项", font=("Arial", 14))
         label.pack(pady=10)
@@ -145,7 +174,7 @@ class SelectOptionsPage(tk.Frame):
         cancel_button = tk.Button(button_frame, text="取消", command=controller.on_cancel)
         cancel_button.pack(side="right", padx=5)
 
-        next_button = tk.Button(button_frame, text="下一步", command=self.download_file)
+        next_button = tk.Button(button_frame, text="下一步", command=self.save_download_url)
         next_button.pack(side="right", padx=5)
 
         back_button = tk.Button(button_frame, text="上一步", command=lambda: controller.show_frame("WelcomePage"))
@@ -212,31 +241,145 @@ class SelectOptionsPage(tk.Frame):
             self.build_revision_combobox.set(build_revision_options[0])
             build_revision = build_revision_options[0]
 
-    def download_file(self):
+    def save_download_url(self):
         version = self.version_combobox.get()
         architecture = self.architecture_combobox.get()
         threads = self.threads_combobox.get()
         exception = self.exception_combobox.get()
         build_revision = self.build_revision_combobox.get()
 
-        url = None
+        self.download_url = None
         for entry in self.repository_data:
             if (entry[0] == version and entry[1].strip() == architecture and
                 entry[2].strip() == threads and entry[3].strip() == exception and
                 entry[4].strip() == build_revision):
-                url = entry[5]
+                self.download_url = entry[5]
                 break
-        else:
-            messagebox.showerror("Error", "No matching entry found.")
-            return
 
-        # 下载文件
+        if not self.download_url:
+            messagebox.showerror("Error", "No matching entry found.")
+        else:
+            self.controller.download_url = self.download_url
+            self.controller.show_frame("InstallDirPage")
+
+class DownloadPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        label = tk.Label(self, text="下载中...", font=("Arial", 14))
+        label.pack(pady=20)
+
+        self.progress = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
+        self.progress.pack(pady=10)
+
+        self.progress_label = tk.Label(self, text="0%")
+        self.progress_label.pack(pady=5)
+
+    def start_download(self):
+        threading.Thread(target=self.download_file).start()
+
+    def download_file(self):
+        url = self.controller.download_url
         local_filename = url.split('/')[-1]
-        try:
-            urllib.request.urlretrieve(url, local_filename)
-            messagebox.showinfo("Success", f"Downloaded {local_filename}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to download file: {str(e)}")
+        install_dir = self.controller.install_dir
+
+        full_path = os.path.join(install_dir, local_filename)
+
+        proxiesY = {
+            "http": "http://xxxxx-xxx.xxxxx.com:xxx",
+            "https": "http://xxxxx-xxx.xxxxx.com:xxx",
+        }
+
+        # response = requests.get(url, proxies=proxiesY, stream=True)
+        # response = requests.get(url, stream=True)
+        # response = requests.get(f"{url}", timeout=2)
+        # Note, with proxy it is always working, removed proxy, not working, will check in the end
+        response = requests.get(url, timeout=10, stream=True)
+        total_length = response.headers.get('content-length')
+
+        if total_length is None:
+            self.progress['maximum'] = 100
+            self.progress['value'] = 100
+            self.progress_label.config(text="Unable to determine file size")
+        else:
+            total_length = int(total_length)
+            self.progress['maximum'] = total_length
+
+            with open(full_path, 'wb') as f:
+                downloaded = 0
+                for data in response.iter_content(chunk_size=4096):
+                    downloaded += len(data)
+                    f.write(data)
+                    self.progress['value'] = downloaded
+                    percent = (downloaded / total_length) * 100
+                    self.progress_label.config(text=f"{percent:.2f}%")
+                    self.update_idletasks()
+
+        self.controller.show_frame("ExtractPage")
+
+class ExtractPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        label = tk.Label(self, text="解压缩中...", font=("Arial", 14))
+        label.pack(pady=20)
+
+        self.progress = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
+        self.progress.pack(pady=10)
+
+        self.progress_label = tk.Label(self, text="0%")
+        self.progress_label.pack(pady=5)
+
+    def start_extraction(self):
+        threading.Thread(target=self.extract_file).start()
+
+    def extract_file(self):
+        url = self.controller.download_url
+        local_filename = url.split('/')[-1]
+        install_dir = self.controller.install_dir
+
+        full_path = os.path.join(install_dir, local_filename)
+
+        # 打开 7z 文件
+        with py7zr.SevenZipFile(full_path, mode='r') as z:
+            all_files = z.getnames()
+            total_files = len(all_files)
+            self.progress['maximum'] = total_files
+
+            # 找到内部的 mingw64 文件夹
+            mingw64_prefix = None
+            for name in all_files:
+                if 'mingw64/' in name:
+                    mingw64_prefix = name.split('mingw64/')[0] + 'mingw64/'
+                    break
+
+            if not mingw64_prefix:
+                messagebox.showerror("Error", "未找到 mingw64 文件夹")
+                return
+
+            # 提取 mingw64 文件夹及其内容
+            extracted_files = 0
+            for i, file in enumerate(all_files):
+                if file.startswith(mingw64_prefix):
+                    try:
+                        target_path = os.path.join(install_dir, file[len(mingw64_prefix):])
+                        if not os.path.exists(os.path.dirname(target_path)):
+                            os.makedirs(os.path.dirname(target_path))
+                        z.extract(targets=[file], path=os.path.dirname(target_path))
+                    except py7zr.exceptions.CrcError:
+                        messagebox.showwarning("Warning", f"CRC error encountered with file: {file}")
+                        continue
+
+                    extracted_files += 1
+                    self.progress['value'] = extracted_files
+                    percent = (extracted_files / total_files) * 100
+                    self.progress_label.config(text=f"{percent:.2f}%")
+                    self.update_idletasks()
+
+        messagebox.showinfo("Success", "文件解压缩完成！")
+        self.controller.show_frame("InstallDirPage")
 
 class InstallDirPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -262,7 +405,8 @@ class InstallDirPage(tk.Frame):
         cancel_button = tk.Button(button_frame, text="取消", command=controller.on_cancel)
         cancel_button.pack(side="right", padx=5)
 
-        next_button = tk.Button(button_frame, text="下一步", command=self.install)
+        # next_button = tk.Button(button_frame, text="下一步", command=self.install)
+        next_button = tk.Button(button_frame, text="下一步", command=lambda: controller.show_frame("DownloadPage"))
         next_button.pack(side="right", padx=5)
 
         back_button = tk.Button(button_frame, text="上一步", command=lambda: controller.show_frame("SelectOptionsPage"))
@@ -272,6 +416,7 @@ class InstallDirPage(tk.Frame):
         directory = filedialog.askdirectory()
         if directory:
             self.install_dir.set(directory)
+            self.controller.install_dir = directory
 
     def install(self):
         if self.install_dir.get():
