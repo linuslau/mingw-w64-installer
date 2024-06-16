@@ -317,6 +317,7 @@ class DownloadPage(tk.Frame):
                     self.update_idletasks()
 
         self.controller.show_frame("ExtractPage")
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
@@ -351,25 +352,42 @@ class ExtractPage(tk.Frame):
         try:
             # 调用 7z.exe 进行解压缩，直接解压到目标目录
             cmd = f'"C:\\Program Files\\7-Zip\\7z.exe" x "{full_path}" -o"{install_dir}" -y'
-            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
             total_files = self.get_total_files(full_path)
             extracted_files = 0
 
+            i = 0
             while True:
+                line = p.stdout.readline()
+                if line:
+                    if i == 11:
+                        s = b""
+                        while True:
+                            char = p.stdout.read(1)
+                            if char == b"E":  # "Everything is ok" means end
+                                break
+                            s += char
+                            if char == b"%":
+                                print(s.decode("gbk"))
+                                s = b""
+                    print(line)
+                    i += 1
+                '''
                 output = process.stdout.readline()
                 if process.poll() is not None and output == '':
                     break
                 if output:
-                    print("kz: " + output)  # 调试信息，输出7z的日志
-                    # 计算并更新进度
-                    # if re.search(r'Extracting\s+(.+)', output):
-                    if re.search(r'Extracting\s+.+', output):
-                        extracted_files += 1
-                        percent = (extracted_files / total_files) * 100 if total_files > 0 else 0
+                    print(output)  # 调试信息，输出7z的日志
+                    # 匹配文件提取进度信息
+                    match = re.search(r'(\d+)%\s+-\s+(.+)', output)
+                    if match:
+                        percent = int(match.group(1))
+                        extracted_file = match.group(2)
                         self.progress['value'] = percent
-                        self.progress_label.config(text=f"{percent:.2f}%")
+                        self.progress_label.config(text=f"{percent:.2f}% ({extracted_file})")
                         self.update_idletasks()
+                '''
 
             process.wait()
 
@@ -392,6 +410,7 @@ class ExtractPage(tk.Frame):
                         total_files = int(match.group(1))
                         break
         return total_files
+
 
 class InstallDirPage(tk.Frame):
     def __init__(self, parent, controller):
