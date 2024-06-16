@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import requests
 import threading
+import time
 
 class InstallerApp(tk.Tk):
     def __init__(self):
@@ -69,16 +70,26 @@ class SplashPage(tk.Frame):
 
     def download_file(self):
         def task():
-            try:
-                response = requests.get("https://example.com/repository_description.txt", timeout=5)
-                if response.status_code == 200:
-                    self.status_text.set("文件下载成功！")
-                else:
-                    self.status_text.set("文件下载失败，继续下一步。")
-            except requests.RequestException:
+            url = "https://example.com/repository_description.zip"  # 假定的文件URL
+            total_timeout = 10  # 总共最多尝试10秒
+            timeout_per_try = 5  # 单次连接最多5秒
+            attempts = 0
+            start_time = time.time()
+
+            while time.time() - start_time < total_timeout:
+                try:
+                    response = requests.get(url, timeout=timeout_per_try)
+                    if response.status_code == 200:
+                        self.status_text.set("文件下载成功！")
+                        break
+                except requests.RequestException:
+                    attempts += 1
+                    self.status_text.set(f"尝试连接中...（尝试次数：{attempts}）")
+            else:
                 self.status_text.set("连接超时，继续下一步。")
-            finally:
-                self.controller.show_frame("SelectOptionsPage")
+
+            time.sleep(2)  # 保持一段时间显示
+            self.controller.show_frame("SelectOptionsPage")
 
         threading.Thread(target=task).start()
 
