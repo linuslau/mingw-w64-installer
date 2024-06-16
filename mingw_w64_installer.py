@@ -73,10 +73,9 @@ class SplashPage(tk.Frame):
 
     def download_file(self):
         def task():
-            # url = "https://example.com/repository_description.zip"  # 假定的文件URL
             url = "https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/installer/repository.txt/download"  # 假定的文件URL
-            total_timeout = 10  # 总共最多尝试10秒
-            timeout_per_try = 5  # 单次连接最多5秒
+            total_timeout = 6  # 总共最多尝试10秒
+            timeout_per_try = 2  # 单次连接最多5秒
             attempts = 0
             start_time = time.time()
 
@@ -84,6 +83,8 @@ class SplashPage(tk.Frame):
                 try:
                     response = requests.get(url, timeout=timeout_per_try)
                     if response.status_code == 200:
+                        with open("repository.txt", "wb") as file:
+                            file.write(response.content)
                         self.status_text.set("文件下载成功！")
                         time.sleep(2)  # 保持一段时间显示
                         self.controller.show_frame("SelectOptionsPage")
