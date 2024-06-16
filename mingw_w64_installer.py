@@ -1,5 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import requests
+import threading
 
 class InstallerApp(tk.Tk):
     def __init__(self):
@@ -9,7 +11,7 @@ class InstallerApp(tk.Tk):
         self.resizable(False, False)
         
         self.frames = {}
-        for F in (WelcomePage, SelectOptionsPage, InstallDirPage):
+        for F in (WelcomePage, SplashPage, SelectOptionsPage, InstallDirPage):
             page_name = F.__name__
             frame = F(parent=self, controller=self)
             self.frames[page_name] = frame
@@ -47,8 +49,38 @@ class WelcomePage(tk.Frame):
         cancel_button = tk.Button(button_frame, text="取消", command=controller.on_cancel)
         cancel_button.pack(side="right", padx=5)
 
-        next_button = tk.Button(button_frame, text="下一步", command=lambda: controller.show_frame("SelectOptionsPage"))
+        next_button = tk.Button(button_frame, text="下一步", command=lambda: controller.show_frame("SplashPage"))
         next_button.pack(side="right", padx=5)
+
+class SplashPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        label = tk.Label(self, text="获取存储库描述文件...", font=("Arial", 14))
+        label.pack(pady=20)
+
+        self.status_text = tk.StringVar()
+        self.status_text.set("Getting repository description file...")
+        status_label = tk.Label(self, textvariable=self.status_text)
+        status_label.pack(pady=10)
+
+        self.after(100, self.download_file)
+
+    def download_file(self):
+        def task():
+            try:
+                response = requests.get("https://example.com/repository_description.txt", timeout=5)
+                if response.status_code == 200:
+                    self.status_text.set("文件下载成功！")
+                else:
+                    self.status_text.set("文件下载失败，继续下一步。")
+            except requests.RequestException:
+                self.status_text.set("连接超时，继续下一步。")
+            finally:
+                self.controller.show_frame("SelectOptionsPage")
+
+        threading.Thread(target=task).start()
 
 class SelectOptionsPage(tk.Frame):
     def __init__(self, parent, controller):
