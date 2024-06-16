@@ -334,10 +334,10 @@ class ExtractPage(tk.Frame):
         label.pack(pady=20)
 
         self.progress = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
-        self.progress.pack(pady=10)
+        self.progress.pack(pady=10, fill="x")
 
-        self.progress_label = tk.Label(self, text="0%")
-        self.progress_label.pack(pady=5)
+        self.progress_label = tk.Label(self, text="0%", anchor="w", justify="left")
+        self.progress_label.pack(pady=5, fill="x")
 
     def start_extraction(self):
         threading.Thread(target=self.extract_file).start()
@@ -351,43 +351,60 @@ class ExtractPage(tk.Frame):
 
         try:
             # 调用 7z.exe 进行解压缩，直接解压到目标目录
-            cmd = f'"C:\\Program Files\\7-Zip\\7z.exe" x "{full_path}" -o"{install_dir}" -y'
-            p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-            total_files = self.get_total_files(full_path)
-            extracted_files = 0
+            cmd = f'"C:\\Program Files\\7-Zip\\7z.exe" x "{full_path}" -o"{install_dir}" -aoa -bsp1'
+            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             i = 0
             while True:
-                line = p.stdout.readline()
+                line = process.stdout.readline()
                 if line:
+                    print('kz a new line start ', line)
                     if i == 11:
                         s = b""
                         while True:
-                            char = p.stdout.read(1)
-                            if char == b"E":  # "Everything is ok" means end
-                                break
+                            char = process.stdout.read(1)
+                            if char == b"E":
+                                char2 = process.stdout.read(1)
+                                if char2 == b"v":
+                                    print("Found 'Ev'", char + char2)
+                                    break
+                                else:
+                                    print("Not 'Ev':", char + char2)
                             s += char
-                            if char == b"%":
-                                print(s.decode("gbk"))
+                            if char == b"\r":
+                                sstr = s.decode("gbk")
+                                print(sstr)
+                                sstr = sstr.strip()
+                                match = re.search(r'(\d+)%', sstr)
+                                '''
+                                if match:
+                                    percent = int(match.group(1))
+                                    self.progress['value'] = percent
+                                    self.progress_label.config(text=sstr.strip())
+                                    self.update_idletasks()
+                                '''
+                                if match:
+                                    percent = int(match.group(1))
+                                    self.progress['value'] = percent
+                                    # 格式化显示，确保左边对齐
+                                    display_text = f"{sstr}"
+                                    self.progress_label.config(text=display_text)
+                                    self.update_idletasks()
                                 s = b""
-                    print(line)
+                    else:
+                        print('     not line 11')
+                    print('kz a new line mid ' + line.decode("gbk"))
                     i += 1
-                '''
-                output = process.stdout.readline()
-                if process.poll() is not None and output == '':
-                    break
-                if output:
-                    print(output)  # 调试信息，输出7z的日志
-                    # 匹配文件提取进度信息
-                    match = re.search(r'(\d+)%\s+-\s+(.+)', output)
-                    if match:
-                        percent = int(match.group(1))
-                        extracted_file = match.group(2)
-                        self.progress['value'] = percent
-                        self.progress_label.config(text=f"{percent:.2f}% ({extracted_file})")
-                        self.update_idletasks()
-                '''
+
+                    char = process.stdout.read(1)
+                    if char == b"C":
+                        char2 = process.stdout.read(1)
+                        if char2 == b"o":
+                            print("Found 'Co'", char + char2)
+                            break
+                        else:
+                            print("Not 'Co':", char + char2)
+                    print('kz a new line end ' + line.decode("gbk"))
 
             process.wait()
 
@@ -399,18 +416,6 @@ class ExtractPage(tk.Frame):
 
         except Exception as e:
             messagebox.showerror("Error", f"文件解压缩失败：{e}")
-
-    def get_total_files(self, full_path):
-        total_files = 0
-        with subprocess.Popen(['C:\\Program Files\\7-Zip\\7z.exe', 'l', full_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as p:
-            for line in p.stdout:
-                if 'files' in line:
-                    match = re.search(r'(\d+)\s+files', line)
-                    if match:
-                        total_files = int(match.group(1))
-                        break
-        return total_files
-
 
 class InstallDirPage(tk.Frame):
     def __init__(self, parent, controller):
