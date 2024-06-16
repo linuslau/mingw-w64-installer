@@ -318,6 +318,8 @@ class DownloadPage(tk.Frame):
 
         self.controller.show_frame("ExtractPage")
 
+import subprocess
+
 class ExtractPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -342,44 +344,44 @@ class ExtractPage(tk.Frame):
 
         full_path = os.path.join(install_dir, local_filename)
 
-        # 打开 7z 文件
-        with py7zr.SevenZipFile(full_path, mode='r') as z:
-            all_files = z.getnames()
-            total_files = len(all_files)
-            self.progress['maximum'] = total_files
+        try:
+            # 调用 7z.exe 进行解压缩，不使用临时目录
+            cmd = f'"C:\\Program Files\\7-Zip\\7z.exe" x "{full_path}" -o"{install_dir}" -y'
+            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            # 找到内部的 mingw64 文件夹
-            mingw64_prefix = None
-            for name in all_files:
-                if 'mingw64/' in name:
-                    mingw64_prefix = name.split('mingw64/')[0] + 'mingw64/'
+            total_size = 0
+            extracted_size = 0
+            # 获取压缩文件的总大小
+            with subprocess.Popen(['C:\\Program Files\\7-Zip\\7z.exe', 'l', full_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+                for line in p.stdout:
+                    if b'files' in line:
+                        total_size = int(line.split()[0])
+                        break
+
+            while True:
+                output = process.stdout.readline()
+                if process.poll() is not None and output == b'':
                     break
+                if output:
+                    # 计算并更新进度
+                    if b'Extracting' in output:
+                        extracted_size += int(output.split()[0])
+                        percent = (extracted_size / total_size) * 100 if total_size > 0 else 0
+                        self.progress['value'] = percent
+                        self.progress_label.config(text=f"{percent:.2f}%")
+                        self.update_idletasks()
 
-            if not mingw64_prefix:
-                messagebox.showerror("Error", "未找到 mingw64 文件夹")
-                return
+            process.wait()
 
-            # 提取 mingw64 文件夹及其内容
-            extracted_files = 0
-            for i, file in enumerate(all_files):
-                if file.startswith(mingw64_prefix):
-                    try:
-                        target_path = os.path.join(install_dir, file[len(mingw64_prefix):])
-                        if not os.path.exists(os.path.dirname(target_path)):
-                            os.makedirs(os.path.dirname(target_path))
-                        z.extract(targets=[file], path=os.path.dirname(target_path))
-                    except py7zr.exceptions.CrcError:
-                        messagebox.showwarning("Warning", f"CRC error encountered with file: {file}")
-                        continue
+            if process.returncode != 0:
+                raise Exception("7z 解压缩失败")
 
-                    extracted_files += 1
-                    self.progress['value'] = extracted_files
-                    percent = (extracted_files / total_files) * 100
-                    self.progress_label.config(text=f"{percent:.2f}%")
-                    self.update_idletasks()
+            messagebox.showinfo("Success", "文件解压缩完成！")
+            self.controller.show_frame("InstallDirPage")
 
-        messagebox.showinfo("Success", "文件解压缩完成！")
-        self.controller.show_frame("InstallDirPage")
+        except Exception as e:
+            messagebox.showerror("Error", f"文件解压缩失败：{e}")
+
 
 class InstallDirPage(tk.Frame):
     def __init__(self, parent, controller):
