@@ -317,8 +317,12 @@ class DownloadPage(tk.Frame):
                     self.update_idletasks()
 
         self.controller.show_frame("ExtractPage")
-
+import tkinter as tk
+from tkinter import ttk, messagebox
+import threading
 import subprocess
+import os
+import re
 
 class ExtractPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -345,28 +349,24 @@ class ExtractPage(tk.Frame):
         full_path = os.path.join(install_dir, local_filename)
 
         try:
-            # 调用 7z.exe 进行解压缩，不使用临时目录
+            # 调用 7z.exe 进行解压缩，直接解压到目标目录
             cmd = f'"C:\\Program Files\\7-Zip\\7z.exe" x "{full_path}" -o"{install_dir}" -y'
-            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-            total_size = 0
-            extracted_size = 0
-            # 获取压缩文件的总大小
-            with subprocess.Popen(['C:\\Program Files\\7-Zip\\7z.exe', 'l', full_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
-                for line in p.stdout:
-                    if b'files' in line:
-                        total_size = int(line.split()[0])
-                        break
+            total_files = self.get_total_files(full_path)
+            extracted_files = 0
 
             while True:
                 output = process.stdout.readline()
-                if process.poll() is not None and output == b'':
+                if process.poll() is not None and output == '':
                     break
                 if output:
+                    print("kz: " + output)  # 调试信息，输出7z的日志
                     # 计算并更新进度
-                    if b'Extracting' in output:
-                        extracted_size += int(output.split()[0])
-                        percent = (extracted_size / total_size) * 100 if total_size > 0 else 0
+                    # if re.search(r'Extracting\s+(.+)', output):
+                    if re.search(r'Extracting\s+.+', output):
+                        extracted_files += 1
+                        percent = (extracted_files / total_files) * 100 if total_files > 0 else 0
                         self.progress['value'] = percent
                         self.progress_label.config(text=f"{percent:.2f}%")
                         self.update_idletasks()
@@ -382,6 +382,16 @@ class ExtractPage(tk.Frame):
         except Exception as e:
             messagebox.showerror("Error", f"文件解压缩失败：{e}")
 
+    def get_total_files(self, full_path):
+        total_files = 0
+        with subprocess.Popen(['C:\\Program Files\\7-Zip\\7z.exe', 'l', full_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as p:
+            for line in p.stdout:
+                if 'files' in line:
+                    match = re.search(r'(\d+)\s+files', line)
+                    if match:
+                        total_files = int(match.group(1))
+                        break
+        return total_files
 
 class InstallDirPage(tk.Frame):
     def __init__(self, parent, controller):
