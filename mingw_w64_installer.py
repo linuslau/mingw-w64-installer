@@ -3,12 +3,14 @@ from tkinter import ttk, filedialog, messagebox
 import requests
 import threading
 import time
+import os
+import urllib.request
 
 class InstallerApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("安装包")
-        self.geometry("400x300")
+        self.geometry("400x400")
         self.resizable(False, False)
         
         self.frames = {}
@@ -110,15 +112,33 @@ class SelectOptionsPage(tk.Frame):
         description = tk.Label(self, text="请选择以下选项：")
         description.pack(pady=10)
 
-        self.options = []
-        for i in range(5):
-            option_frame = tk.Frame(self)
-            option_frame.pack(pady=5, padx=10, fill="x")
-            label = tk.Label(option_frame, text=f"选项 {i+1}:")
-            label.pack(side="left")
-            combo = ttk.Combobox(option_frame, values=[f"选项 {i+1} - 值 {j+1}" for j in range(5)])
-            combo.pack(side="right", fill="x", expand=True)
-            self.options.append(combo)
+        self.repository_data = self.parse_repository_file()
+
+        # 标签和下拉框
+        ttk.Label(self, text="Version:").pack(pady=5, anchor='w')
+        self.version_combobox = ttk.Combobox(self, state='readonly')
+        self.version_combobox.pack(fill='x', padx=10)
+        self.version_combobox.bind("<<ComboboxSelected>>", self.update_combobox_options)
+
+        ttk.Label(self, text="Architecture:").pack(pady=5, anchor='w')
+        self.architecture_combobox = ttk.Combobox(self, state='readonly')
+        self.architecture_combobox.pack(fill='x', padx=10)
+        self.architecture_combobox.bind("<<ComboboxSelected>>", self.update_combobox_options)
+
+        ttk.Label(self, text="Threads:").pack(pady=5, anchor='w')
+        self.threads_combobox = ttk.Combobox(self, state='readonly')
+        self.threads_combobox.pack(fill='x', padx=10)
+        self.threads_combobox.bind("<<ComboboxSelected>>", self.update_combobox_options)
+
+        ttk.Label(self, text="Exception:").pack(pady=5, anchor='w')
+        self.exception_combobox = ttk.Combobox(self, state='readonly')
+        self.exception_combobox.pack(fill='x', padx=10)
+        self.exception_combobox.bind("<<ComboboxSelected>>", self.update_combobox_options)
+
+        ttk.Label(self, text="Build Revision:").pack(pady=5, anchor='w')
+        self.build_revision_combobox = ttk.Combobox(self, state='readonly')
+        self.build_revision_combobox.pack(fill='x', padx=10)
+        self.build_revision_combobox.bind("<<ComboboxSelected>>", self.update_combobox_options)
 
         button_frame = tk.Frame(self)
         button_frame.pack(side="bottom", fill="x", pady=10)
@@ -126,11 +146,86 @@ class SelectOptionsPage(tk.Frame):
         cancel_button = tk.Button(button_frame, text="取消", command=controller.on_cancel)
         cancel_button.pack(side="right", padx=5)
 
-        next_button = tk.Button(button_frame, text="下一步", command=lambda: controller.show_frame("InstallDirPage"))
+        next_button = tk.Button(button_frame, text="下一步", command=self.download_file)
         next_button.pack(side="right", padx=5)
 
         back_button = tk.Button(button_frame, text="上一步", command=lambda: controller.show_frame("WelcomePage"))
         back_button.pack(side="right", padx=5)
+
+        # 初始加载
+        self.version_combobox['values'] = sorted(set([entry[0] for entry in self.repository_data]))
+        self.version_combobox.current(0)
+        self.update_combobox_options(None)
+
+    def parse_repository_file(self):
+        repository_file = 'repository.txt'
+        data = []
+
+        if os.path.exists(repository_file):
+            with open(repository_file, 'r') as file:
+                for line in file:
+                    if line.strip():
+                        data.append(line.strip().split('|'))
+
+        return data
+
+    def update_combobox_options(self, event):
+        version = self.version_combobox.get()
+        architecture = self.architecture_combobox.get()
+        threads = self.threads_combobox.get()
+        exception = self.exception_combobox.get()
+        build_revision = self.build_revision_combobox.get()
+
+        filtered_data = [entry for entry in self.repository_data if entry[0] == version]
+        architectures = sorted(set([entry[1].strip() for entry in filtered_data]))
+        if architecture not in architectures:
+            self.architecture_combobox.set('')
+        self.architecture_combobox['values'] = architectures
+
+        filtered_data = [entry for entry in self.repository_data if entry[0] == version and entry[1].strip() == architecture]
+        thread_options = sorted(set([entry[2].strip() for entry in filtered_data]))
+        if threads not in thread_options:
+            self.threads_combobox.set('')
+        self.threads_combobox['values'] = thread_options
+
+        filtered_data = [entry for entry in self.repository_data if entry[0] == version and entry[1].strip() == architecture and entry[2].strip() == threads]
+        exception_options = sorted(set([entry[3].strip() for entry in filtered_data]))
+        if exception not in exception_options:
+            self.exception_combobox.set('')
+        self.exception_combobox['values'] = exception_options
+
+        filtered_data = [entry for entry in self.repository_data if entry[0] == version and entry[1].strip() == architecture and entry[2].strip() == threads and entry[3].strip() == exception]
+        build_revision_options = sorted(set([entry[4].strip() for entry in filtered_data]))
+        if build_revision not in build_revision_options:
+            self.build_revision_combobox.set('')
+        self.build_revision_combobox['values'] = build_revision_options
+
+    def download_file(self):
+        version = self.version_combobox.get()
+        architecture = self.architecture_combobox.get()
+        threads = self.threads_combobox.get()
+        exception = self.exception_combobox.get()
+        build_revision = self.build_revision_combobox.get()
+
+        # 找到匹配的URL
+        for entry in self.repository_data:
+            if (entry[0] == version and entry[1].strip() == architecture and
+                entry[2].strip() == threads and entry[3].strip() == exception and
+                entry[4].strip() == build_revision):
+                url = entry[5]
+                break
+        else:
+            messagebox.showerror("Error", "No matching entry found.")
+            return
+
+        # 下载文件
+        local_filename = url.split('/')[-1]
+        try:
+            urllib.request.urlretrieve(url, local_filename)
+            messagebox.showinfo("Success", f"Downloaded {local_filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to download file: {str(e)}")
+
 
 class InstallDirPage(tk.Frame):
     def __init__(self, parent, controller):
