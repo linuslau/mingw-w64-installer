@@ -34,7 +34,7 @@ class InstallerApp(tk.Tk):
         self.install_dir = None
 
         self.frames = {}
-        for F in (WelcomePage, SplashPage, SelectOptionsPage, InstallDirPage, DownloadPage, ExtractPage):
+        for F in (WelcomePage, SplashPage, SelectOptionsPage, InstallDirPage, DownloadPage, ExtractPage, CompletionPage):
             page_name = F.__name__
             frame = F(parent=self, controller=self)
             self.frames[page_name] = frame
@@ -51,6 +51,8 @@ class InstallerApp(tk.Tk):
             frame.start_download()
         elif page_name == "ExtractPage":
             frame.start_extraction()
+        elif page_name == "CompletionPage":
+            frame.set_completion_info()
 
     def on_cancel(self):
         if messagebox.askyesno("取消", "你确定要取消安装吗？"):
@@ -333,11 +335,18 @@ class ExtractPage(tk.Frame):
         label = tk.Label(self, text="解压缩中...", font=("Arial", 14))
         label.pack(pady=20)
 
-        self.progress = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
-        self.progress.pack(pady=10, fill="x")
+        # Create a frame to hold the progress bar and label
+        progress_frame = tk.Frame(self)
+        progress_frame.pack(pady=10, fill="x")
 
-        self.progress_label = tk.Label(self, text="0%", anchor="w", justify="left")
-        self.progress_label.pack(pady=5, fill="x")
+        self.progress = ttk.Progressbar(progress_frame, orient="horizontal", length=300, mode="determinate")
+        self.progress.grid(row=0, column=0, sticky="ew")
+
+        # Add a placeholder to reserve space for the progress label
+        self.progress_label = tk.Label(progress_frame, text="0%", anchor="w", width=50, justify="left")
+        self.progress_label.grid(row=1, column=0, sticky="w")
+
+        progress_frame.columnconfigure(0, weight=1)
 
     def start_extraction(self):
         threading.Thread(target=self.extract_file).start()
@@ -411,8 +420,8 @@ class ExtractPage(tk.Frame):
             if process.returncode != 0:
                 raise Exception("7z 解压缩失败")
 
-            messagebox.showinfo("Success", "文件解压缩完成！")
-            self.controller.show_frame("InstallDirPage")
+            # messagebox.showinfo("Success", "文件解压缩完成！")
+            self.controller.show_frame("CompletionPage")
 
         except Exception as e:
             messagebox.showerror("Error", f"文件解压缩失败：{e}")
@@ -459,6 +468,43 @@ class InstallDirPage(tk.Frame):
             messagebox.showinfo("安装", "安装已完成！")
         else:
             messagebox.showwarning("警告", "请选择安装目录！")
+class CompletionPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        label = tk.Label(self, text="安装完成！", font=("Arial", 18))
+        label.pack(pady=20)
+
+        self.thank_you_label = tk.Label(self, text="", font=("Arial", 12), wraplength=380, justify="left")
+        self.thank_you_label.pack(pady=10, padx=20)
+
+        self.download_info_label = tk.Label(self, text="", font=("Arial", 12), wraplength=380, justify="left")
+        self.download_info_label.pack(pady=5, padx=20)
+
+        self.extraction_info_label = tk.Label(self, text="", font=("Arial", 12), wraplength=380, justify="left")
+        self.extraction_info_label.pack(pady=5, padx=20)
+
+        finish_button = tk.Button(self, text="完成", command=self.finish_installation)
+        finish_button.pack(pady=20)
+
+    # def set_completion_info(self, filename, install_dir):
+    def set_completion_info(self):
+        url = self.controller.download_url
+        local_filename = url.split('/')[-1]
+        install_dir = self.controller.install_dir
+
+        full_path = os.path.join(install_dir, local_filename)
+        thank_you_text = "感谢使用这个程序"
+        download_info_text = f"这个程序下载了 {local_filename} 文件到 {install_dir} 位置"
+        extraction_info_text = f"这个程序解压缩了 {local_filename} 文件到了 {install_dir} 位置"
+
+        self.thank_you_label.config(text=thank_you_text)
+        self.download_info_label.config(text=download_info_text)
+        self.extraction_info_label.config(text=extraction_info_text)
+
+    def finish_installation(self):
+        self.controller.quit()
 
 if __name__ == "__main__":
     app = InstallerApp()
